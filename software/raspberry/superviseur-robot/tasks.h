@@ -66,7 +66,8 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
-    
+    int levelMessage = MESSAGE_ROBOT_BATTERY_LEVEL;
+    int level =0;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -76,6 +77,8 @@ private:
     RT_TASK th_openComRobot;
     RT_TASK th_startRobot;
     RT_TASK th_move;
+    // Our tasks
+    RT_TASK th_check_battery_level;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -148,6 +151,18 @@ private:
      * @return Message read
      */
     Message *ReadInQueue(RT_QUEUE *queue);
+
+
+    /**********************************************************************/
+    /* Queue services                                                     */
+    /**********************************************************************/
+    /**
+     * Write a message in a given queue
+     * @param queue Queue identifier
+     * @param msg Message to be stored
+     */
+    void UpdateBatteryLevel(void* arg);
+
 
 };
 

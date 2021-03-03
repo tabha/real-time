@@ -26,6 +26,8 @@
 #define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
+#define PRIORITY_BATTERY_UPDATE 10
+
 
 /*
  * Some remarks:
@@ -40,6 +42,7 @@
  *   time for internal buffer to flush
  * 
  * 5- Same behavior existe for ComMonitor::Write !
+
  * 
  * 6- When you want to write something in terminal, use cout and terminate with endl and flush
  * 
@@ -123,6 +126,10 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_task_create(&th_check_battery_level, "th_battery_update", 0, PRIORITY_BATTERY_UPDATE, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Tasks created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -164,6 +171,10 @@ void Tasks::Run() {
         exit(EXIT_FAILURE);
     }
     if (err = rt_task_start(&th_move, (void(*)(void*)) & Tasks::MoveTask, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if(err = rt_task_start(&th_check_battery_level,(void(*)(void*) ) & Tasks::UpdateBatteryLevel,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -415,3 +426,60 @@ Message *Tasks::ReadInQueue(RT_QUEUE *queue) {
     return msg;
 }
 
+
+
+// Nos taches
+void Tasks::UpdateBatteryLevel(void* arg){
+   //Variables
+    Message * msgSend;
+    int rs; // reponse du rebot
+    
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    
+    //Synchronization barrier, awaiting for all the tasks to start
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    //rt_sem_p(&sem_batteryLevel, TM_INFINITE);
+    
+    //Task
+    rt_task_set_periodic(&th_check_battery_level, TM_NOW, rt_timer_ns2ticks(50000000));
+    
+    cout << "Battery started" << endl;
+    
+    while (1) {
+        //cout << "Battery started while" << endl;
+        rt_task_wait_period(NULL);
+        
+        //Verify if the Robot is active
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        rs = robotStarted;
+        rt_mutex_release(&mutex_robotStarted);
+        
+        if (rs) {
+           cout << "Update battery" << endl << flush;
+           
+           //Get the battery level update
+           rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+           msgSend = robot.Write(robot.GetBattery());
+           rt_mutex_release(&mutex_robot);
+            
+           if(msgSend != NULL && !msgSend->CompareID(MESSAGE_ANSWER_ROBOT_TIMEOUT))
+           {
+                if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_EMPTY){
+                   cout << "Update : Empty Battery \n" << endl;
+                }else if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_LOW){
+                   cout << "Update : Low Battery \n" << endl;
+
+                }else if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_FULL){
+                   cout << "Update : Full Battery \n" << endl;
+                }else{
+                   cout << "Update : Unknown Battery Level \n" << endl;
+                }
+               //Send the battery level update to the monitor
+                WriteInQueue(&q_messageToMon, msgSend);
+
+           } else {
+               cout << "Response unknown \n" << endl;
+           }
+        }
+    }
+}

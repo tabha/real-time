@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     
     tasks.Stop();
     
-    //tasks.Run();
+    tasks.Run();
 
     return 0;
 }
