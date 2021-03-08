@@ -68,6 +68,12 @@ private:
     int move = MESSAGE_ROBOT_STOP;
     int levelMessage = MESSAGE_ROBOT_BATTERY_LEVEL;
     int level =0;
+    int commandCamera; // contient la command a envoyé à la camera
+    Camera cammera;
+
+    int error_count = 0;
+    Arena arena;
+    bool watchDog = false;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -79,6 +85,7 @@ private:
     RT_TASK th_move;
     // Our tasks
     RT_TASK th_check_battery_level;
+    RT_TASK th_refreshWatchDog;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -87,7 +94,14 @@ private:
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
-
+    RT_MUTEX mutex_commandCamera;
+    RT_MUTEX mutex_camera;
+    RT_MUTEX mutex_continueStream;
+    RT_MUTEX mutex_actionType;
+    RT_MUTEX mutex_arena;
+    RT_MUTEX mutex_period;
+    RT_MUTEX mutex_error_count;
+    RT_MUTEX mutex_watchDog;
     /**********************************************************************/
     /* Semaphores                                                         */
     /**********************************************************************/
@@ -95,6 +109,13 @@ private:
     RT_SEM sem_openComRobot;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
+    RT_SEM sem_refreshWatchDog;
+
+    // Nos sem
+    RT_SEM sem_CamCommunication;
+    RT_SEM sem_camera;
+    RT_SEM sem_start_Stream;
+
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -163,7 +184,16 @@ private:
      */
     void UpdateBatteryLevel(void* arg);
 
+   /**
+     * @brief Thread handling the communication with the camera
+     */
+    void CamCommunicationTask(void * arg);
+    /**
+     * @brief Thread handling refreshing the watchDog
+     */
+    void RefreshWatchDog(void * arg);
 
+    
 };
 
 #endif // __TASKS_H__ 

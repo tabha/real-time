@@ -133,7 +133,9 @@ public:
     bool CompareID(MessageID id) {
         return (this->messageID == id) ? true:false;
     }
-    
+
+
+
     /**
      * Get message ID
      * @return Current message ID
@@ -465,9 +467,7 @@ public:
         return pos;
     }
 
-    /**
-     * Set position
-     * @param pos Reference to position
+    /**Message
      */
     void SetPosition(Position& pos);
 
@@ -527,7 +527,7 @@ public:
 
     /**
      * Set message ID
-     * @param id Message ID
+     * @param id Message IDMessage
      * @throw std::runtime_error if message ID is incompatible with battery message
      */
     void SetID(MessageID id);
