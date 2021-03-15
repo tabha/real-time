@@ -74,6 +74,8 @@ private:
     int error_count = 0;
     Arena arena;
     bool watchDog = false;
+    bool canStream = false; // permet d'indiquer à la camera qu'elle commencer à streamer
+    int actionCamera; // contient la commande à faire exécuter à la camera
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -86,6 +88,7 @@ private:
     // Our tasks
     RT_TASK th_check_battery_level;
     RT_TASK th_refreshWatchDog;
+    RT_TASK th_actionProcess_Camera;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -110,9 +113,10 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_refreshWatchDog;
+    RT_SEM sem_start_Stream;
 
     // Nos sem
-    RT_SEM sem_CamCommunication;
+    RT_SEM sem_CamCommunication; // permet de commmuniquer avec la camera
     RT_SEM sem_camera;
     RT_SEM sem_start_Stream;
 
@@ -192,6 +196,13 @@ private:
      * @brief Thread handling refreshing the watchDog
      */
     void RefreshWatchDog(void * arg);
+
+    /**
+     * @brief Thread handling Command from monitor 
+     */
+    void ActionCameraHandler(void * arg);
+
+
 
     
 };
