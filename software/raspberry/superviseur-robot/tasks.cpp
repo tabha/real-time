@@ -29,6 +29,7 @@
 #define PRIORITY_BATTERY_UPDATE 20
 #define PRIORITY_TREFRESHWD 99
 #define PRIORITY_ACTION_CAMERA 19
+#define PRIORITY_COM_CAMERA 23
 
 // CONSANTES LOCALES POUR LES COMMANDES DE LA CAMERA
 #define CAMERA_ASK_ARENA 300
@@ -94,6 +95,14 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_mutex_create(&mutex_period, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_mutex_create(&mutex_actionType, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -123,10 +132,12 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
     if (err = rt_sem_create(&sem_start_Stream, NULL, 0, S_FIFO)) {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
     cout << "Semaphores created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -166,6 +177,11 @@ void Tasks::Init() {
     }
     if (err = rt_task_create(&th_actionProcess_Camera, "th_action_Camera_Process", 0, PRIORITY_ACTION_CAMERA, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&th_comCamera, "th_com_camera", 0, PRIORITY_COM_CAMERA, 0)) {
+        cerr << "Error task create: (th_comCamera) " << strerror(-err) << endl << flush;
+        
         exit(EXIT_FAILURE);
     }
     cout << "Tasks created successfully" << endl << flush;
@@ -211,21 +227,21 @@ void Tasks::Run() {
     if (err = rt_task_start(&th_move, (void(*)(void*)) & Tasks::MoveTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    }
+    }/*
     if(err = rt_task_start(&th_check_battery_level,(void(*)(void*) ) & Tasks::UpdateBatteryLevel,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    }
+    } */
     if(err = rt_task_start(&th_refreshWatchDog,(void(*)(void*) ) & Tasks::RefreshWatchDog,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
     // TODO
     // NOT FINISHED YET 
-    /*if(err = rt_task_start(&th_refreshWatchDog,(void(*)(void*) ) & Tasks::RefreshWatchDog,this)){
+    if(err = rt_task_start(&th_comCamera,(void(*)(void*) ) & Tasks::CamCommunicationTask,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    }*/
+    }
     // NOT FINISHED YET
     /*if(err = rt_task_start(&th_action_Camera_Process,(void(*)(void*) ) & Tasks::ActionCameraHandler,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
@@ -299,8 +315,10 @@ void Tasks::SendToMonTask(void* arg) {
         msg = ReadInQueue(&q_messageToMon);
         cout << "Send msg to mon: " << msg->ToString() << endl << flush;
         rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+        cout << "mutex acquire " << endl << flush;
         monitor.Write(msg); // The message is deleted with the Write
         rt_mutex_release(&mutex_monitor);
+        cout << "mutex released " << endl << flush;
         cout << "Message sent: "<< endl << flush;
     }
 }
@@ -357,15 +375,15 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_mutex_acquire(&mutex_move, TM_INFINITE);
             move = msgRcv->GetID();
             rt_mutex_release(&mutex_move);
-        }else if(msgRcv->CompareID(MESSAGE_CAM_ASK_ARENA||
+        }else if(msgRcv->CompareID(MESSAGE_CAM_ASK_ARENA) ||
                 msgRcv->CompareID(MESSAGE_CAM_OPEN) ||
                 msgRcv->CompareID(MESSAGE_CAM_CLOSE) ||
                 msgRcv->CompareID(MESSAGE_CAM_ARENA_CONFIRM) ||
-                msgRcv->CompareID(MESSAGE_CAM_ARENA_INFIRM)) ||
-                msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START)) ||
+                msgRcv->CompareID(MESSAGE_CAM_ARENA_INFIRM) ||
+                msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_START) ||
                 msgRcv->CompareID(MESSAGE_CAM_POSITION_COMPUTE_STOP))
 
-            ){
+            {
             rt_mutex_acquire(&mutex_commandCamera,TM_INFINITE);
             commandCamera = msgRcv->GetID();
             rt_mutex_release(&mutex_commandCamera);
@@ -503,8 +521,8 @@ void Tasks::MoveTask(void *arg) {
                     rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
                     robotStarted=0;
                     rt_mutex_release(&mutex_robotStarted);
-                    Message m= MESSAGE_ANSWER_COM_ERROR;
-                    WriteInQueue(&q_messageToMon,&m);
+                    Message* m= new Message(MESSAGE_ANSWER_COM_ERROR);
+                    WriteInQueue(&q_messageToMon,m);
                     
                     rt_mutex_acquire(&mutex_robot,TM_INFINITE);
                     
@@ -616,12 +634,13 @@ void Tasks::UpdateBatteryLevel(void* arg){
 
 void Tasks::ActionCameraHandler(void* arg){
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
-
+    /*
     rt_sem_p(&sem_barrier,TM_INFINITE);
     rt_sem_p(&)
+     * */
 }
 // cette tache se charge de gérer les communication avec la camera
-/*
+
 void Tasks::CamCommunicationTask(void* arg){
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // on synchronize avec la barrier
@@ -631,7 +650,7 @@ void Tasks::CamCommunicationTask(void* arg){
 
         int tempCommand;
         bool status;
-        Message m;
+        Message* m;
         // attente d'un signal d'une demande de communicationac le moniteur
         rt_sem_p(&sem_CamCommunication,TM_INFINITE); // prise du semaphore de communication
         // prise du mutex de la camera pour les commande 
@@ -644,38 +663,46 @@ void Tasks::CamCommunicationTask(void* arg){
                 // prise du mutex
                 rt_mutex_acquire(&mutex_camera,TM_INFINITE);
                 status = cammera.Open();
+                cout << "status " << status << endl << flush;
+                
                 rt_mutex_release(&mutex_camera);
                 if(status){
-                    m = MESSAGE_ANSWER_ACK;
-                    WriteInQueue(&q_messageToMon,&m);
+                    m = new Message(MESSAGE_ANSWER_ACK);
+                    WriteInQueue(&q_messageToMon,m);
                     
                     rt_mutex_acquire(&mutex_continueStream, TM_INFINITE);
                     canStream = true ;
                     rt_mutex_release(&mutex_continueStream);
+                    
 
                     rt_mutex_acquire(&mutex_actionType, TM_INFINITE);
                     actionCamera = CAMERA_STREAM ;
                     rt_mutex_release(&mutex_actionType);
+                    
 
                     rt_mutex_acquire(&mutex_period, TM_INFINITE);
                     period = rt_timer_ns2ticks(100000000); // frequence d'echantillonage 100 ms 
                     rt_mutex_release(&mutex_period);
+                    
+                    
+                    rt_sem_v(&sem_start_Stream);
+                    
 
-                    rt_sem_v(&sem_startStream);
                 }else{
-                    m = MESSAGE_ANSWER_NACK;
-                    WriteInQueue(&q_messageToMon,&m);
+                    cout << "something went wrong" << status << endl << flush;
+                    m = new Message(MESSAGE_ANSWER_NACK);
+                    WriteInQueue(&q_messageToMon,m);
                 }
                 break;
             case MESSAGE_CAM_CLOSE:
                 cout << "Camera Closing ..." << endl << flush;
-                m = MESSAGE_ANSWER_ACK;
+                m = new Message( MESSAGE_ANSWER_ACK);
                 
-                rt_mutex_acquire(&mutex_continueStream,TM_INFINITE)
+                rt_mutex_acquire(&mutex_continueStream,TM_INFINITE);
                 canStream = false;
                 rt_mutex_release(&mutex_continueStream);
                 // Camera properly closed
-                WriteInQueue(&q_messageToMon,&m);
+                WriteInQueue(&q_messageToMon,m);
                 break;
             case MESSAGE_CAM_ASK_ARENA:
                 cout << "Camera Asking arena..." << endl << flush;
@@ -709,7 +736,7 @@ void Tasks::CamCommunicationTask(void* arg){
 
     }
 }
-*/
+
 void Tasks::RefreshWatchDog(void* arg){
     int rs_status;
     //Synchronization barrier

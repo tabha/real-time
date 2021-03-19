@@ -147,7 +147,7 @@ void ComMonitor::Write(Message *msg) {
     /* Convert message to string to send to monitor */
     str = MessageToString(msg);
 
-    //cout << "Message sent to monitor: " << str->c_str() << endl;
+    cout << "Message sent to monitor: " << str << endl;
     write(clientID, str.c_str(), str.length());
 
     if (!msg->CompareID(MESSAGE_CAM_IMAGE)) {

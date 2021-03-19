@@ -76,6 +76,7 @@ private:
     bool watchDog = false;
     bool canStream = false; // permet d'indiquer à la camera qu'elle commencer à streamer
     int actionCamera; // contient la commande à faire exécuter à la camera
+    int period;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -89,7 +90,7 @@ private:
     RT_TASK th_check_battery_level;
     RT_TASK th_refreshWatchDog;
     RT_TASK th_actionProcess_Camera;
-    
+    RT_TASK th_comCamera;
     /**********************************************************************/
     /* Mutex                                                              */
     /**********************************************************************/
@@ -113,7 +114,6 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_refreshWatchDog;
-    RT_SEM sem_start_Stream;
 
     // Nos sem
     RT_SEM sem_CamCommunication; // permet de commmuniquer avec la camera
