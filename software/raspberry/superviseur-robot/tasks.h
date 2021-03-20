@@ -106,6 +106,7 @@ private:
     RT_MUTEX mutex_period;
     RT_MUTEX mutex_error_count;
     RT_MUTEX mutex_watchDog;
+    RT_MUTEX mutex_arenaConfirmed;
     /**********************************************************************/
     /* Semaphores                                                         */
     /**********************************************************************/
@@ -114,6 +115,7 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_refreshWatchDog;
+    RT_SEM sem_arenaResult;
 
     // Nos sem
     RT_SEM sem_CamCommunication; // permet de commmuniquer avec la camera

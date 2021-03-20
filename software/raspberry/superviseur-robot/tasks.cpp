@@ -107,6 +107,10 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_mutex_create(&mutex_arenaConfirmed, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -138,6 +142,11 @@ void Tasks::Init() {
     }
     
     if (err = rt_sem_create(&sem_start_Stream, NULL, 0, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_sem_create(&sem_arenaResult, NULL, 0, S_FIFO)) {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -231,26 +240,27 @@ void Tasks::Run() {
     if (err = rt_task_start(&th_move, (void(*)(void*)) & Tasks::MoveTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    }/*
+    }
+    
     if(err = rt_task_start(&th_check_battery_level,(void(*)(void*) ) & Tasks::UpdateBatteryLevel,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    } */
+    } 
     if(err = rt_task_start(&th_refreshWatchDog,(void(*)(void*) ) & Tasks::RefreshWatchDog,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    // TODO
-    // NOT FINISHED YET 
+    // DONE
+    // FINISHED
     if(err = rt_task_start(&th_comCamera,(void(*)(void*) ) & Tasks::CamCommunicationTask,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    // NOT FINISHED YET
-    /*if(err = rt_task_start(&th_action_Camera_Process,(void(*)(void*) ) & Tasks::ActionCameraHandler,this)){
+    // DONE
+    if(err = rt_task_start(&th_action_Camera_Process,(void(*)(void*) ) & Tasks::ActionCameraHandler,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
-    }*/
+    }
 
 
     cout << "Tasks launched" << endl << flush;
@@ -824,19 +834,29 @@ void Tasks::CamCommunicationTask(void* arg){
             case MESSAGE_CAM_ARENA_CONFIRM:
                 cout << "Camera Confirm Arena ..." << endl << flush; 
                // TODO
+                rt_mutex_acquire(&mutex_arenaConfirmed,TM_INFINITE);
+                arenaConfirmed = true;
+                rt_mutex_release(&mutex_arenaConfirmed);
+
+                rt_sem_v(&sem_arenaResult);
                 break;
             case MESSAGE_CAM_ARENA_INFIRM:
                 cout << "Camera Infirm Arena ..." << endl << flush;
                 // TODO
+                rt_mutex_acquire(&mutex_arenaConfirmed,TM_INFINITE);
+                arenaConfirmed = false;
+                rt_mutex_release(&mutex_arenaConfirmed);
+
+                rt_sem_v(&sem_arenaResult);
                 break;
             case MESSAGE_CAM_POSITION_COMPUTE_STOP:
                 cout << "Stoping camera..." << endl << flush;
                 rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
-                actionCamera = CAMERA_FIND_POSITION; // TODO ask what COMPUTE STOP MEANS ?
+                actionCamera = CAMERA_STREAM; // TODO ask what COMPUTE STOP MEANS ?
                 rt_mutex_release(&mutex_actionType);
                 break;
             case MESSAGE_CAM_POSITION_COMPUTE_START:
-                cout << "Stoping camera..." << endl << flush;
+                cout << "Start Finding camera pos camera..." << endl << flush;
                 rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
                 actionCamera = CAMERA_FIND_POSITION; 
                 rt_mutex_release(&mutex_actionType);
