@@ -103,6 +103,10 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_mutex_create(&mutex_arena, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -634,10 +638,117 @@ void Tasks::UpdateBatteryLevel(void* arg){
 
 void Tasks::ActionCameraHandler(void* arg){
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
-    /*
+    
     rt_sem_p(&sem_barrier,TM_INFINITE);
-    rt_sem_p(&)
-     * */
+    rt_sem_p(&sem_start_Stream,TM_INFINITE); // attendre que la camera soit ourverte
+    // lire la fréquence d'échantillonage
+
+    rt_mutex_acquire(&mutex_period,TM_INFINITE);
+    rt_task_set_periodic(NULL,TM_NOW,period);
+    rt_task_release(&mutex_period);
+
+    bool auxCanStream;
+    int auxTypeAction;
+    Arena auxArena;
+
+    rt_mutex_acquire(&mutex_camera,TM_INFINITE);
+    Img img = camera.Grab();
+    rt_mutex_release(&mutex_camera);
+
+    rt_mutex_acquire(&mutex_camera,TM_INFINITE);
+    Img imgArena = camera.Grab();
+    rt_mutex_release(&mutex_camera);
+
+    bool auxArenaConfirmed;
+    Position position;
+
+    while(1){
+        rt_mutex_acquire(&mutex_continueStream,TM_INFINITE);
+        auxCanStream = canStream;
+        rt_mutex_release(&mutex_continueStream);
+        if(auxCanStream){
+            rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
+            auxTypeAction = actionCamera;
+            rt_mutex_release(&mutex_actionType);
+
+            switch(auxTypeAction){
+                case CAMERA_STREAM :
+                    rt_task_wait_period(NULL);
+                    rt_mutex_acquire(&mutex_camera,TM_INFINITE);
+                    img = camera.Grab();
+                    rt_mutex_release(&mutex_camera);
+
+                    // send image to
+                    MessageImg* pImageTosend = new MessageImg(MESSAGE_CAM_IMAGE,&img);
+                    WriteInQueue(&q_messageToMon,pImageTosend);
+
+                    break;
+                case CAMERA_ASK_ARENA:
+                    rt_task_set_periodic(NULL,TM_NOW,0);
+                    rt_mutex_acquire(&mutex_camera,TM_INFINITE);
+                    imgArena = camera.Grab(); // recadrage de l'arena
+                    rt_mutex_release(&mutex_camera);
+
+                    rt_mutex_acquire(&mutex_arena,TM_INFINITE);
+                    arena = imgArena.SearchArena();
+                    auxArena = arena;
+                    rt_mutex_release(&mutex_arena);
+
+                    if(auxArena.IsEmpty()){
+                        WriteInQueue(&q_messageToMon,new Message(MESSAGE_ANSWER_NACK));
+                        rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
+                        actionCamera = CAMERA_STREAM; // continue to stream
+                        rt_mutex_release(&mutex_actionType);
+                    }else{
+                        imgArena.DrawArena(auxArena);
+                        WriteInQueue(&q_messageToMon,new MessageImg(MESSAGE_CAM_IMAGE,&imgArena));
+
+                        //rt_sem_p(&sem_arenaResult,TM_INFINITE);
+
+                        rt_mutex_acquire(&mutex_arenaConfirmed,TM_INFINITE);
+                        auxArenaConfirmed = arenaConfirmed;
+                        rt_mutex_release(&mutex_arenaConfirmed);
+
+                        if(auxArenaConfirmed){
+                            cout << "Arean saved " << end << flush;
+                        }
+
+                        rt_task_set_periodic(NULL,TM_NOW,period);
+                        rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
+                        actionType = CAMERA_STREAM;
+                        rt_mutex_release(&mutex_actionType);
+                    }
+
+                    break;
+                case CAMERA_FIND_POSITION:
+                    rt_task_set_periodic(NULL,TM_NOW,0);
+                    rt_mutex_acquire(&mutex_arena,TM_INFINITE);
+                    auxArena = arena;
+                    rt_mutex_release(&mutex_arena);
+
+                    if(auxArena.IsEmpty()){
+                        WriteInQueue(&q_messageToMon,new MessagePosition()); // a new empty Position
+                    }else{
+                        rt_mutex_acquire(&mutex_camera,TM_INFINITE);
+                        img = camera.Grab();
+                        rt_mutex_release(&mutex_camera);
+
+                        position = img.SearchRobot(auxArena).front(); // return the first found robot in the list of foud robots
+                        WriteInQueue(&q_messageToMon,new MessagePosition(MESSAGE_CAM_POSITION,position));
+
+                        rt_task_set_periodic(NULL,TM_NOW,period);
+                        rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
+                        actionType = CAMERA_STREAM;
+                        rt_mutex_release(&mutex_actionType);                        
+                    }
+
+                    break;
+                default :
+                    break;
+            }
+        }
+    }
+     
 }
 // cette tache se charge de gérer les communication avec la camera
 
