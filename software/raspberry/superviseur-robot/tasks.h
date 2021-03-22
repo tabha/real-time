@@ -69,7 +69,7 @@ private:
     int levelMessage = MESSAGE_ROBOT_BATTERY_LEVEL;
     int level =0;
     int commandCamera; // contient la command a envoyé à la camera
-    Camera cammera;
+    Camera camera;
 
     int error_count = 0;
     Arena arena;
@@ -77,6 +77,7 @@ private:
     bool canStream = false; // permet d'indiquer à la camera qu'elle commencer à streamer
     int actionCamera; // contient la commande à faire exécuter à la camera
     int period;
+    bool arenaConfirmed;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -121,7 +122,7 @@ private:
     RT_SEM sem_CamCommunication; // permet de commmuniquer avec la camera
     RT_SEM sem_camera;
     RT_SEM sem_start_Stream;
-
+    
 
     /**********************************************************************/
     /* Message queues                                                     */

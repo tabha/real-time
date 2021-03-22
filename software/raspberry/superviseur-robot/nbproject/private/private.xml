@@ -11,8 +11,10 @@
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/commonitor.cpp</file>
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/tasks.h</file>
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/gdbsudo.sh</file>
-            <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/tasks.cpp</file>
+            <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/commonitor.h</file>
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/messages.h</file>
+            <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/tasks.cpp</file>
+            <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/camera.cpp</file>
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/comrobot.cpp</file>
             <file>file:/home/tabah/projet-temps/dumber/software/raspberry/superviseur-robot/lib/messages.cpp</file>
         </group>

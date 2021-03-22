@@ -257,7 +257,7 @@ void Tasks::Run() {
         exit(EXIT_FAILURE);
     }
     // DONE
-    if(err = rt_task_start(&th_action_Camera_Process,(void(*)(void*) ) & Tasks::ActionCameraHandler,this)){
+    if(err = rt_task_start(&th_actionProcess_Camera,(void(*)(void*) ) & Tasks::ActionCameraHandler,this)){
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -377,7 +377,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_mutex_release(&mutex_watchDog);
 
             rt_sem_v(&sem_startRobot);
-            rt_sem_v(&sem_refreshWatchDog); 
+            //rt_sem_v(&sem_refreshWatchDog); 
         }
         
          else if (msgRcv->CompareID(MESSAGE_ROBOT_GO_FORWARD) ||
@@ -465,7 +465,6 @@ void Tasks::StartRobotTask(void *arg) {
             cout << "Start robot with watchdog (";
             rt_mutex_acquire(&mutex_robot, TM_INFINITE);
             msgSend = robot.Write(robot.StartWithWD());
-            rt_sem_v(&sem_refreshWatchDog);
             rt_mutex_release(&mutex_robot);
             cout << msgSend->GetID();
             cout << ")" << endl;
@@ -485,6 +484,14 @@ void Tasks::StartRobotTask(void *arg) {
             rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
             robotStarted = 1;
             rt_mutex_release(&mutex_robotStarted);
+            
+            if(wd){
+                cout << "starting answer: " << msgSend->ToString() << endl << flush;
+                rt_sem_v(&sem_refreshWatchDog);
+            }
+            
+        }else{
+            
         }
     }
 }
@@ -540,9 +547,9 @@ void Tasks::MoveTask(void *arg) {
                     
                     rt_mutex_acquire(&mutex_robot,TM_INFINITE);
                     
-                    robot.Close();
+                    //robot.Close();
                     cout<< "Robot closed" << endl << flush;
-                    //robot.Reset();
+                    robot.Reset();
                     rt_mutex_release(&mutex_robot);
                     
                 }
@@ -617,19 +624,19 @@ void Tasks::UpdateBatteryLevel(void* arg){
         rt_mutex_release(&mutex_robotStarted);
         
         if (rs) {
-           cout << "Update battery" << endl << flush;
+           //cout << "Update battery" << endl << flush;
            
            //Get the battery level update
            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
            msgSend = robot.Write(robot.GetBattery());
            rt_mutex_release(&mutex_robot);
-            
+           /* 
            if(msgSend != NULL && !msgSend->CompareID(MESSAGE_ANSWER_ROBOT_TIMEOUT))
            {
                 if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_EMPTY){
-                   cout << "Update : Empty Battery \n" << endl;
+             //      cout << "Update : Empty Battery \n" << endl;
                 }else if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_LOW){
-                   cout << "Update : Low Battery \n" << endl;
+               //    cout << "Update : Low Battery \n" << endl;
 
                 }else if((dynamic_cast<MessageBattery*>(msgSend))->GetLevel() == BATTERY_FULL){
                    cout << "Update : Full Battery \n" << endl;
@@ -642,6 +649,7 @@ void Tasks::UpdateBatteryLevel(void* arg){
            } else {
                cout << "Response unknown \n" << endl;
            }
+            * */
         }
     }
 }
@@ -655,7 +663,7 @@ void Tasks::ActionCameraHandler(void* arg){
 
     rt_mutex_acquire(&mutex_period,TM_INFINITE);
     rt_task_set_periodic(NULL,TM_NOW,period);
-    rt_task_release(&mutex_period);
+    rt_mutex_release(&mutex_period);
 
     bool auxCanStream;
     int auxTypeAction;
@@ -671,7 +679,7 @@ void Tasks::ActionCameraHandler(void* arg){
 
     bool auxArenaConfirmed;
     Position position;
-
+    MessageImg* imageTosend;
     while(1){
         rt_mutex_acquire(&mutex_continueStream,TM_INFINITE);
         auxCanStream = canStream;
@@ -688,10 +696,9 @@ void Tasks::ActionCameraHandler(void* arg){
                     img = camera.Grab();
                     rt_mutex_release(&mutex_camera);
 
-                    // send image to
-                    MessageImg* pImageTosend = new MessageImg(MESSAGE_CAM_IMAGE,&img);
-                    WriteInQueue(&q_messageToMon,pImageTosend);
-
+                     imageTosend = new MessageImg(MESSAGE_CAM_IMAGE,&img);
+                    WriteInQueue(&q_messageToMon,imageTosend);
+                    //delete(imageTosend);
                     break;
                 case CAMERA_ASK_ARENA:
                     rt_task_set_periodic(NULL,TM_NOW,0);
@@ -719,13 +726,11 @@ void Tasks::ActionCameraHandler(void* arg){
                         auxArenaConfirmed = arenaConfirmed;
                         rt_mutex_release(&mutex_arenaConfirmed);
 
-                        if(auxArenaConfirmed){
-                            cout << "Arean saved " << end << flush;
-                        }
+                        
 
                         rt_task_set_periodic(NULL,TM_NOW,period);
                         rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
-                        actionType = CAMERA_STREAM;
+                        actionCamera = CAMERA_STREAM;
                         rt_mutex_release(&mutex_actionType);
                     }
 
@@ -748,7 +753,7 @@ void Tasks::ActionCameraHandler(void* arg){
 
                         rt_task_set_periodic(NULL,TM_NOW,period);
                         rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
-                        actionType = CAMERA_STREAM;
+                        actionCamera = CAMERA_STREAM;
                         rt_mutex_release(&mutex_actionType);                        
                     }
 
@@ -756,6 +761,11 @@ void Tasks::ActionCameraHandler(void* arg){
                 default :
                     break;
             }
+        }
+        else{
+            // cannot stream to do action
+            cout << "Camera Cannot stream Open Camera first ..." << endl << flush;
+            WriteInQueue(&q_messageToMon,new Message(MESSAGE_ANSWER_NACK));
         }
     }
      
@@ -766,7 +776,7 @@ void Tasks::CamCommunicationTask(void* arg){
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // on synchronize avec la barrier
     rt_sem_p(&sem_barrier,TM_INFINITE);
-   
+    bool auxCanStream;
     while(1){
 
         int tempCommand;
@@ -783,7 +793,7 @@ void Tasks::CamCommunicationTask(void* arg){
                 cout << "Camera Opening ..." << endl << flush;
                 // prise du mutex
                 rt_mutex_acquire(&mutex_camera,TM_INFINITE);
-                status = cammera.Open();
+                status = camera.Open();
                 cout << "status " << status << endl << flush;
                 
                 rt_mutex_release(&mutex_camera);
@@ -850,16 +860,28 @@ void Tasks::CamCommunicationTask(void* arg){
                 rt_sem_v(&sem_arenaResult);
                 break;
             case MESSAGE_CAM_POSITION_COMPUTE_STOP:
-                cout << "Stoping camera..." << endl << flush;
+                cout << "Stoping camera finding position..." << endl << flush;
                 rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
                 actionCamera = CAMERA_STREAM; // TODO ask what COMPUTE STOP MEANS ?
                 rt_mutex_release(&mutex_actionType);
                 break;
             case MESSAGE_CAM_POSITION_COMPUTE_START:
                 cout << "Start Finding camera pos camera..." << endl << flush;
-                rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
-                actionCamera = CAMERA_FIND_POSITION; 
-                rt_mutex_release(&mutex_actionType);
+                
+                rt_mutex_acquire(&mutex_continueStream,TM_INFINITE);
+                auxCanStream = canStream;
+                rt_mutex_release(&mutex_continueStream);
+                
+                if(auxCanStream){
+                    rt_mutex_acquire(&mutex_actionType,TM_INFINITE);
+                    actionCamera = CAMERA_FIND_POSITION; 
+                    rt_mutex_release(&mutex_actionType);
+                }else{
+                    // cannot stream to do action
+                    cout << "Camera Cannot stream Open Camera first ..." << endl << flush;
+                    WriteInQueue(&q_messageToMon,new Message(MESSAGE_ANSWER_NACK));
+                }
+                
                 break;
             default :
                 break;
@@ -871,13 +893,13 @@ void Tasks::CamCommunicationTask(void* arg){
 void Tasks::RefreshWatchDog(void* arg){
     int rs_status;
     //Synchronization barrier
-    //rt_sem_p(&sem_barrier, TM_INFINITE);
-    rt_sem_p(&sem_refreshWatchDog, TM_INFINITE);
+    rt_sem_p(&sem_barrier, TM_INFINITE);
     
     //Beginning of the Task
     //rt_task_set_periodic(&th_refreshWD, TM_NOW, 955000000);
+    
+    rt_sem_p(&sem_refreshWatchDog, TM_INFINITE);
     rt_task_set_periodic(&th_refreshWatchDog, TM_NOW, rt_timer_ns2ticks(1000000000));
-   
     
     while(1) {
         rt_task_wait_period(NULL);
